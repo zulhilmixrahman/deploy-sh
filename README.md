@@ -17,5 +17,5 @@ A collection of shell scripts for server setup and configuration.
 > Must be run as root or with `sudo`.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/{distro}/script}.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/<distro-name>/<script-name>.sh | sudo bash
 ```
