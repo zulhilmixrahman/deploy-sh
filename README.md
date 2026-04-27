@@ -6,6 +6,15 @@ A collection of shell scripts for server setup and configuration.
 
 | Script | Description |
 |--------|-------------|
-| [ubuntu/laravel-stack.sh](ubuntu/README.md) | Install Nginx + PHP-FPM for Laravel on Ubuntu |
-| [ubuntu/mysql-prod.sh](ubuntu/README.md) | Install MySQL Community + production tuning on Ubuntu |
-| [ubuntu/postgresql-prod.sh](ubuntu/README.md) | Install PostgreSQL + production tuning on Ubuntu |
+| [ubuntu/laravel-stack.sh](ubuntu/laravel-stack.md) | Install Nginx + PHP-FPM for Laravel on Ubuntu |
+| [ubuntu/mysql-prod.sh](ubuntu/mysql-prod.md) | Install MySQL Community + production tuning on Ubuntu |
+| [ubuntu/postgresql-prod.sh](ubuntu/postgresql-prod.md) | Install PostgreSQL + production tuning on Ubuntu |
+
+
+## Installation
+
+> Must be run as root or with `sudo`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/{distro}/script}.sh | sudo bash
+```
