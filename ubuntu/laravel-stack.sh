@@ -83,13 +83,17 @@ apt-get install -y -qq \
     unzip \
     git
 
-# ─── Ondřej Surý PPAs ─────────────────────────────────────────────────────────
-info "Adding Ondřej Surý Nginx PPA..."
-add-apt-repository -y ppa:ondrej/nginx > /dev/null 2>&1
+# ─── Repositories ────────────────────────────────────────────────────────────
+info "Adding official Nginx stable repository..."
+curl -fsSL https://nginx.org/keys/nginx_signing.key \
+    | gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
+https://nginx.org/packages/ubuntu $(lsb_release -cs) nginx" \
+    > /etc/apt/sources.list.d/nginx.list
 info "Adding Ondřej Surý PHP PPA..."
-add-apt-repository -y ppa:ondrej/php > /dev/null 2>&1
+add-apt-repository -y ppa:ondrej/php
 apt-get update -qq
-success "Ondřej Surý PPAs ready."
+success "Nginx (nginx.org) and Ondřej Surý PHP repositories ready."
 
 # ─── Nginx ─────────────────────────────────────────────────────────────────────
 info "Installing Nginx..."
