@@ -13,12 +13,10 @@ info()    { echo -e "${BLUE}[INFO]${NC}  $*"; }
 success() { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
+read_input() { read "$@" </dev/tty || true; }
 
 # ─── Root check ────────────────────────────────────────────────────────────────
 [[ $EUID -ne 0 ]] && error "Run this script as root or with sudo."
-
-# Re-attach stdin to the terminal so read prompts work when piped via curl | bash
-[[ -t 0 ]] || exec < /dev/tty
 
 # ─── Detect RAM for tuning defaults ───────────────────────────────────────────
 TOTAL_RAM_MB=$(awk '/MemTotal/ { printf "%d", $2/1024 }' /proc/meminfo)
@@ -56,7 +54,7 @@ echo "    3) PostgreSQL 15"
 echo "    4) PostgreSQL 16"
 echo "    5) PostgreSQL 17  (latest)"
 echo ""
-read -rp "  Select version [default: 5]: " ver_choice
+read_input -rp "  Select version [default: 5]: " ver_choice
 echo ""
 
 case "${ver_choice:-5}" in
@@ -73,7 +71,7 @@ echo "  Storage type:"
 echo "    1) SSD"
 echo "    2) HDD"
 echo ""
-read -rp "  Select storage type [default: 1]: " storage_choice
+read_input -rp "  Select storage type [default: 1]: " storage_choice
 echo ""
 
 case "${storage_choice:-1}" in
@@ -87,37 +85,37 @@ echo "  Production tuning (press Enter to keep default):"
 echo "  Server RAM detected: ${TOTAL_RAM_MB}MB | CPUs: ${DEFAULT_WORKERS}"
 echo ""
 
-read -rp "    shared_buffers           [${DEFAULT_SHARED_BUFFERS}]: " T_SHARED_BUFFERS
+read_input -rp "    shared_buffers           [${DEFAULT_SHARED_BUFFERS}]: " T_SHARED_BUFFERS
 T_SHARED_BUFFERS="${T_SHARED_BUFFERS:-$DEFAULT_SHARED_BUFFERS}"
 
-read -rp "    effective_cache_size     [${DEFAULT_CACHE_SIZE}]: " T_CACHE_SIZE
+read_input -rp "    effective_cache_size     [${DEFAULT_CACHE_SIZE}]: " T_CACHE_SIZE
 T_CACHE_SIZE="${T_CACHE_SIZE:-$DEFAULT_CACHE_SIZE}"
 
-read -rp "    maintenance_work_mem     [${DEFAULT_MAINT_MEM}]: " T_MAINT_MEM
+read_input -rp "    maintenance_work_mem     [${DEFAULT_MAINT_MEM}]: " T_MAINT_MEM
 T_MAINT_MEM="${T_MAINT_MEM:-$DEFAULT_MAINT_MEM}"
 
-read -rp "    work_mem                 [4MB]:   " T_WORK_MEM
+read_input -rp "    work_mem                 [4MB]:   " T_WORK_MEM
 T_WORK_MEM="${T_WORK_MEM:-4MB}"
 
-read -rp "    max_connections          [100]:   " T_MAX_CONN
+read_input -rp "    max_connections          [100]:   " T_MAX_CONN
 T_MAX_CONN="${T_MAX_CONN:-100}"
 
-read -rp "    max_worker_processes     [${DEFAULT_WORKERS}]:     " T_WORKERS
+read_input -rp "    max_worker_processes     [${DEFAULT_WORKERS}]:     " T_WORKERS
 T_WORKERS="${T_WORKERS:-$DEFAULT_WORKERS}"
 
-read -rp "    log_min_duration_statement (ms, -1=off) [1000]: " T_SLOW_MS
+read_input -rp "    log_min_duration_statement (ms, -1=off) [1000]: " T_SLOW_MS
 T_SLOW_MS="${T_SLOW_MS:-1000}"
 
-read -rp "    wal_buffers              [16MB]:  " T_WAL_BUFFERS
+read_input -rp "    wal_buffers              [16MB]:  " T_WAL_BUFFERS
 T_WAL_BUFFERS="${T_WAL_BUFFERS:-16MB}"
 
-read -rp "    checkpoint_completion_target [0.9]: " T_CHECKPOINT
+read_input -rp "    checkpoint_completion_target [0.9]: " T_CHECKPOINT
 T_CHECKPOINT="${T_CHECKPOINT:-0.9}"
 
 echo ""
 
 # ─── Remote access ─────────────────────────────────────────────────────────────
-read -rp "  Allow remote connections? [y/N]: " REMOTE_ACCESS
+read_input -rp "  Allow remote connections? [y/N]: " REMOTE_ACCESS
 REMOTE_ACCESS="${REMOTE_ACCESS,,}"
 
 LISTEN_ADDR="localhost"
@@ -126,19 +124,19 @@ REMOTE_USER=""
 REMOTE_PASS=""
 
 if [[ "$REMOTE_ACCESS" == "y" || "$REMOTE_ACCESS" == "yes" ]]; then
-    read -rp "    listen_addresses ('*' = all interfaces) [*]: " LISTEN_ADDR
+    read_input -rp "    listen_addresses ('*' = all interfaces) [*]: " LISTEN_ADDR
     LISTEN_ADDR="${LISTEN_ADDR:-*}"
 
-    read -rp "    Allowed client CIDR (e.g. 10.0.0.0/8, 0.0.0.0/0 = any) [0.0.0.0/0]: " REMOTE_CIDR
+    read_input -rp "    Allowed client CIDR (e.g. 10.0.0.0/8, 0.0.0.0/0 = any) [0.0.0.0/0]: " REMOTE_CIDR
     REMOTE_CIDR="${REMOTE_CIDR:-0.0.0.0/0}"
 
-    read -rp "    Create a dedicated remote user? [y/N]: " CREATE_REMOTE_USER
+    read_input -rp "    Create a dedicated remote user? [y/N]: " CREATE_REMOTE_USER
     if [[ "${CREATE_REMOTE_USER,,}" == "y" || "${CREATE_REMOTE_USER,,}" == "yes" ]]; then
-        read -rp "      Remote username [remoteuser]: " REMOTE_USER
+        read_input -rp "      Remote username [remoteuser]: " REMOTE_USER
         REMOTE_USER="${REMOTE_USER:-remoteuser}"
         while true; do
-            read -rsp "      Password for '${REMOTE_USER}': " REMOTE_PASS; echo ""
-            read -rsp "      Confirm password: " REMOTE_PASS2; echo ""
+            read_input -rsp "      Password for '${REMOTE_USER}': " REMOTE_PASS; echo ""
+            read_input -rsp "      Confirm password: " REMOTE_PASS2; echo ""
             [[ "$REMOTE_PASS" == "$REMOTE_PASS2" ]] && break
             warn "Passwords do not match. Try again."
         done

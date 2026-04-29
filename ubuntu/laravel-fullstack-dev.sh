@@ -13,12 +13,10 @@ info()    { echo -e "${BLUE}[INFO]${NC}  $*"; }
 success() { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
+read_input() { read "$@" </dev/tty || true; }
 
 # ─── Root check ────────────────────────────────────────────────────────────────
 [[ $EUID -ne 0 ]] && error "Run this script as root or with sudo."
-
-# Re-attach stdin to the terminal so read prompts work when piped via curl | bash
-[[ -t 0 ]] || exec < /dev/tty
 
 # ─── System info ───────────────────────────────────────────────────────────────
 TOTAL_RAM_MB=$(awk '/MemTotal/ { printf "%d", $2/1024 }' /proc/meminfo)
@@ -59,7 +57,7 @@ else
         fi
     done
     echo ""
-    read -rp "  Select PHP version [default: 8.3]: " php_choice
+    read_input -rp "  Select PHP version [default: 8.3]: " php_choice
     php_choice="${php_choice:-5}"
 
     if [[ "$php_choice" =~ ^[0-9]+$ ]] && (( php_choice >= 1 && php_choice <= ${#SUPPORTED_PHP_VERSIONS[@]} )); then
@@ -85,7 +83,7 @@ echo "    1) MySQL 8.0  (LTS)"
 echo "    2) MySQL 8.4  (LTS, recommended)"
 echo "    3) MySQL 9.1  (Innovation)"
 echo ""
-read -rp "  Select MySQL version [default: 2]: " mysql_choice
+read_input -rp "  Select MySQL version [default: 2]: " mysql_choice
 echo ""
 
 case "${mysql_choice:-2}" in
@@ -99,14 +97,14 @@ esac
 echo "  Application settings (press Enter to keep default):"
 echo ""
 
-read -rp "    Laravel directory name   [laravel]:  " APP_DIR
+read_input -rp "    Laravel directory name   [laravel]:  " APP_DIR
 APP_DIR="${APP_DIR:-laravel}"
 
-read -rp "    Environment label        [staging]:  " APP_ENV
+read_input -rp "    Environment label        [staging]:  " APP_ENV
 APP_ENV="${APP_ENV:-staging}"
 
 echo ""
-read -rp "  Create MySQL database and user now? [Y/n]: " CREATE_DB
+read_input -rp "  Create MySQL database and user now? [Y/n]: " CREATE_DB
 CREATE_DB="${CREATE_DB:-Y}"
 echo ""
 
@@ -115,15 +113,15 @@ DB_USER=""
 DB_PASS=""
 
 if [[ "${CREATE_DB,,}" =~ ^y ]]; then
-    read -rp "    Database name   [${APP_DIR}]: " DB_NAME
+    read_input -rp "    Database name   [${APP_DIR}]: " DB_NAME
     DB_NAME="${DB_NAME:-$APP_DIR}"
 
-    read -rp "    DB username     [${APP_DIR}]: " DB_USER
+    read_input -rp "    DB username     [${APP_DIR}]: " DB_USER
     DB_USER="${DB_USER:-$APP_DIR}"
 
     while true; do
-        read -rsp "    DB password:  " DB_PASS;  echo ""
-        read -rsp "    Confirm:      " DB_PASS2; echo ""
+        read_input -rsp "    DB password:  " DB_PASS;  echo ""
+        read_input -rsp "    Confirm:      " DB_PASS2; echo ""
         [[ "$DB_PASS" == "$DB_PASS2" ]] && break
         warn "Passwords do not match. Try again."
     done
@@ -135,10 +133,10 @@ fi
 echo "  Nginx tuning (press Enter to keep default):"
 echo ""
 
-read -rp "    client_max_body_size [64M]:  " NGX_CLIENT_MAX
+read_input -rp "    client_max_body_size [64M]:  " NGX_CLIENT_MAX
 NGX_CLIENT_MAX="${NGX_CLIENT_MAX:-64M}"
 
-read -rp "    keepalive_timeout    [65]:   " NGX_KEEPALIVE
+read_input -rp "    keepalive_timeout    [65]:   " NGX_KEEPALIVE
 NGX_KEEPALIVE="${NGX_KEEPALIVE:-65}"
 echo ""
 
@@ -147,22 +145,22 @@ echo "  PHP-FPM pool tuning (press Enter to keep default):"
 echo "  RAM: ${TOTAL_RAM_MB}MB  — dev: 50% RAM, ~50MB per PHP process"
 echo ""
 
-read -rp "    pm                   [dynamic]:  " FPM_PM
+read_input -rp "    pm                   [dynamic]:  " FPM_PM
 FPM_PM="${FPM_PM:-dynamic}"
 
-read -rp "    pm.max_children      [${DEFAULT_FPM_MAX}]:       " FPM_MAX_CHILDREN
+read_input -rp "    pm.max_children      [${DEFAULT_FPM_MAX}]:       " FPM_MAX_CHILDREN
 FPM_MAX_CHILDREN="${FPM_MAX_CHILDREN:-$DEFAULT_FPM_MAX}"
 
-read -rp "    pm.start_servers     [${DEFAULT_FPM_START}]:        " FPM_START
+read_input -rp "    pm.start_servers     [${DEFAULT_FPM_START}]:        " FPM_START
 FPM_START="${FPM_START:-$DEFAULT_FPM_START}"
 
-read -rp "    pm.min_spare_servers [${DEFAULT_FPM_MIN_SPARE}]:        " FPM_MIN_SPARE
+read_input -rp "    pm.min_spare_servers [${DEFAULT_FPM_MIN_SPARE}]:        " FPM_MIN_SPARE
 FPM_MIN_SPARE="${FPM_MIN_SPARE:-$DEFAULT_FPM_MIN_SPARE}"
 
-read -rp "    pm.max_spare_servers [${DEFAULT_FPM_MAX_SPARE}]:        " FPM_MAX_SPARE
+read_input -rp "    pm.max_spare_servers [${DEFAULT_FPM_MAX_SPARE}]:        " FPM_MAX_SPARE
 FPM_MAX_SPARE="${FPM_MAX_SPARE:-$DEFAULT_FPM_MAX_SPARE}"
 
-read -rp "    pm.max_requests      [200]:      " FPM_MAX_REQUESTS
+read_input -rp "    pm.max_requests      [200]:      " FPM_MAX_REQUESTS
 FPM_MAX_REQUESTS="${FPM_MAX_REQUESTS:-200}"
 echo ""
 
@@ -170,11 +168,11 @@ echo ""
 echo "  PHP INI tuning (press Enter to keep default):"
 echo ""
 
-read -rp "    upload_max_filesize  [64M]:   " INI_UPLOAD;    INI_UPLOAD="${INI_UPLOAD:-64M}"
-read -rp "    post_max_size        [64M]:   " INI_POST;      INI_POST="${INI_POST:-64M}"
-read -rp "    memory_limit         [512M]:  " INI_MEMORY;    INI_MEMORY="${INI_MEMORY:-512M}"
-read -rp "    max_execution_time   [120]:   " INI_EXEC_TIME; INI_EXEC_TIME="${INI_EXEC_TIME:-120}"
-read -rp "    date.timezone        [UTC]:   " INI_TIMEZONE;  INI_TIMEZONE="${INI_TIMEZONE:-UTC}"
+read_input -rp "    upload_max_filesize  [64M]:   " INI_UPLOAD;    INI_UPLOAD="${INI_UPLOAD:-64M}"
+read_input -rp "    post_max_size        [64M]:   " INI_POST;      INI_POST="${INI_POST:-64M}"
+read_input -rp "    memory_limit         [512M]:  " INI_MEMORY;    INI_MEMORY="${INI_MEMORY:-512M}"
+read_input -rp "    max_execution_time   [120]:   " INI_EXEC_TIME; INI_EXEC_TIME="${INI_EXEC_TIME:-120}"
+read_input -rp "    date.timezone        [UTC]:   " INI_TIMEZONE;  INI_TIMEZONE="${INI_TIMEZONE:-UTC}"
 echo ""
 
 # ─── MySQL tuning prompts ─────────────────────────────────────────────────────
@@ -182,22 +180,22 @@ echo "  MySQL tuning (press Enter to keep default):"
 echo "  RAM: ${TOTAL_RAM_MB}MB  — dev: 30% RAM for buffer pool"
 echo ""
 
-read -rp "    innodb_buffer_pool_size  [${DEFAULT_BUFFER_POOL}]: " T_BUFFER_POOL
+read_input -rp "    innodb_buffer_pool_size  [${DEFAULT_BUFFER_POOL}]: " T_BUFFER_POOL
 T_BUFFER_POOL="${T_BUFFER_POOL:-$DEFAULT_BUFFER_POOL}"
 
-read -rp "    max_connections          [50]:   " T_MAX_CONN
+read_input -rp "    max_connections          [50]:   " T_MAX_CONN
 T_MAX_CONN="${T_MAX_CONN:-50}"
 
-read -rp "    max_allowed_packet       [64M]:  " T_MAX_PACKET
+read_input -rp "    max_allowed_packet       [64M]:  " T_MAX_PACKET
 T_MAX_PACKET="${T_MAX_PACKET:-64M}"
 
-read -rp "    slow_query_log           [ON]:   " T_SLOW_LOG
+read_input -rp "    slow_query_log           [ON]:   " T_SLOW_LOG
 T_SLOW_LOG="${T_SLOW_LOG:-ON}"
 
-read -rp "    long_query_time (sec)    [1]:    " T_LONG_QUERY
+read_input -rp "    long_query_time (sec)    [1]:    " T_LONG_QUERY
 T_LONG_QUERY="${T_LONG_QUERY:-1}"
 
-read -rp "    Enable general_log?      [y/N]:  " T_GENERAL_LOG
+read_input -rp "    Enable general_log?      [y/N]:  " T_GENERAL_LOG
 [[ "${T_GENERAL_LOG,,}" =~ ^y ]] && GENERAL_LOG_VAL="ON" || GENERAL_LOG_VAL="OFF"
 echo ""
 
@@ -212,7 +210,7 @@ printf "  │    Env label: %-45s │\n" "${APP_ENV}"
 printf "  │    Database:  %-45s │\n" "${DB_NAME}  (user: ${DB_USER})"
 echo "  └─────────────────────────────────────────────────────────────┘"
 echo ""
-read -rp "  Proceed with installation? [Y/n]: " CONFIRM
+read_input -rp "  Proceed with installation? [Y/n]: " CONFIRM
 CONFIRM="${CONFIRM:-Y}"
 [[ "${CONFIRM,,}" =~ ^y ]] || { warn "Aborted."; exit 0; }
 echo ""
@@ -569,7 +567,7 @@ success "Nginx site config written and reloaded."
 #  COMPOSER
 # ════════════════════════════════════════════════════════════════════════════════
 
-read -rp "  Install Composer? [Y/n]: " INSTALL_COMPOSER
+read_input -rp "  Install Composer? [Y/n]: " INSTALL_COMPOSER
 INSTALL_COMPOSER="${INSTALL_COMPOSER:-Y}"
 echo ""
 

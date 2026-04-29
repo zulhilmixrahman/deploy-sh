@@ -13,12 +13,10 @@ info()    { echo -e "${BLUE}[INFO]${NC}  $*"; }
 success() { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
+read_input() { read "$@" </dev/tty || true; }
 
 # ─── Root check ────────────────────────────────────────────────────────────────
 [[ $EUID -ne 0 ]] && error "Run this script as root or with sudo."
-
-# Re-attach stdin to the terminal so read prompts work when piped via curl | bash
-[[ -t 0 ]] || exec < /dev/tty
 
 # ─── RAM / CPU detection for defaults ─────────────────────────────────────────
 TOTAL_RAM_MB=$(awk '/MemTotal/ { printf "%d", $2/1024 }' /proc/meminfo)
@@ -49,7 +47,7 @@ else
         echo "    $((i+1))) PHP ${SUPPORTED_VERSIONS[$i]}"
     done
     echo ""
-    read -rp "  Select PHP version [default: 8.3]: " choice
+    read_input -rp "  Select PHP version [default: 8.3]: " choice
     choice="${choice:-5}"
 
     if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#SUPPORTED_VERSIONS[@]} )); then
@@ -105,16 +103,16 @@ echo ""
 echo "  Nginx global tuning (press Enter to keep default):"
 echo ""
 
-read -rp "    worker_connections   [1024]:  " NGX_WORKER_CONN
+read_input -rp "    worker_connections   [1024]:  " NGX_WORKER_CONN
 NGX_WORKER_CONN="${NGX_WORKER_CONN:-1024}"
 
-read -rp "    keepalive_timeout    [65]:    " NGX_KEEPALIVE
+read_input -rp "    keepalive_timeout    [65]:    " NGX_KEEPALIVE
 NGX_KEEPALIVE="${NGX_KEEPALIVE:-65}"
 
-read -rp "    client_max_body_size [64M]:   " NGX_CLIENT_MAX
+read_input -rp "    client_max_body_size [64M]:   " NGX_CLIENT_MAX
 NGX_CLIENT_MAX="${NGX_CLIENT_MAX:-64M}"
 
-read -rp "    gzip compression     [on]:    " NGX_GZIP
+read_input -rp "    gzip compression     [on]:    " NGX_GZIP
 NGX_GZIP="${NGX_GZIP:-on}"
 echo ""
 
@@ -175,7 +173,7 @@ echo "    1) MySQL / MariaDB"
 echo "    2) PostgreSQL"
 echo "    3) SQLite"
 echo ""
-read -rp "  Select database [default: 1]: " db_choice
+read_input -rp "  Select database [default: 1]: " db_choice
 echo ""
 
 case "${db_choice:-1}" in
@@ -215,22 +213,22 @@ echo "  PHP-FPM pool tuning (press Enter to keep default):"
 echo "  Detected RAM: ${TOTAL_RAM_MB}MB — estimated ~50MB per PHP process"
 echo ""
 
-read -rp "    pm                   [dynamic]:  " FPM_PM
+read_input -rp "    pm                   [dynamic]:  " FPM_PM
 FPM_PM="${FPM_PM:-dynamic}"
 
-read -rp "    pm.max_children      [${DEFAULT_FPM_MAX}]:      " FPM_MAX_CHILDREN
+read_input -rp "    pm.max_children      [${DEFAULT_FPM_MAX}]:      " FPM_MAX_CHILDREN
 FPM_MAX_CHILDREN="${FPM_MAX_CHILDREN:-$DEFAULT_FPM_MAX}"
 
-read -rp "    pm.start_servers     [${DEFAULT_FPM_START}]:       " FPM_START
+read_input -rp "    pm.start_servers     [${DEFAULT_FPM_START}]:       " FPM_START
 FPM_START="${FPM_START:-$DEFAULT_FPM_START}"
 
-read -rp "    pm.min_spare_servers [${DEFAULT_FPM_MIN_SPARE}]:       " FPM_MIN_SPARE
+read_input -rp "    pm.min_spare_servers [${DEFAULT_FPM_MIN_SPARE}]:       " FPM_MIN_SPARE
 FPM_MIN_SPARE="${FPM_MIN_SPARE:-$DEFAULT_FPM_MIN_SPARE}"
 
-read -rp "    pm.max_spare_servers [${DEFAULT_FPM_MAX_SPARE}]:       " FPM_MAX_SPARE
+read_input -rp "    pm.max_spare_servers [${DEFAULT_FPM_MAX_SPARE}]:       " FPM_MAX_SPARE
 FPM_MAX_SPARE="${FPM_MAX_SPARE:-$DEFAULT_FPM_MAX_SPARE}"
 
-read -rp "    pm.max_requests      [500]:      " FPM_MAX_REQUESTS
+read_input -rp "    pm.max_requests      [500]:      " FPM_MAX_REQUESTS
 FPM_MAX_REQUESTS="${FPM_MAX_REQUESTS:-500}"
 echo ""
 
@@ -259,14 +257,14 @@ echo ""
 echo "  PHP INI tuning (press Enter to keep default):"
 echo ""
 
-read -rp "    upload_max_filesize  [64M]:   " INI_UPLOAD;    INI_UPLOAD="${INI_UPLOAD:-64M}"
-read -rp "    post_max_size        [64M]:   " INI_POST;      INI_POST="${INI_POST:-64M}"
-read -rp "    memory_limit         [256M]:  " INI_MEMORY;    INI_MEMORY="${INI_MEMORY:-256M}"
-read -rp "    max_execution_time   [60]:    " INI_EXEC_TIME; INI_EXEC_TIME="${INI_EXEC_TIME:-60}"
-read -rp "    date.timezone        [UTC]:   " INI_TIMEZONE;  INI_TIMEZONE="${INI_TIMEZONE:-UTC}"
-read -rp "    opcache.memory_consumption    [128]:  " INI_OPC_MEM;   INI_OPC_MEM="${INI_OPC_MEM:-128}"
-read -rp "    opcache.max_accelerated_files [10000]:" INI_OPC_FILES; INI_OPC_FILES="${INI_OPC_FILES:-10000}"
-read -rp "    opcache.revalidate_freq       [0]:    " INI_OPC_FREQ;  INI_OPC_FREQ="${INI_OPC_FREQ:-0}"
+read_input -rp "    upload_max_filesize  [64M]:   " INI_UPLOAD;    INI_UPLOAD="${INI_UPLOAD:-64M}"
+read_input -rp "    post_max_size        [64M]:   " INI_POST;      INI_POST="${INI_POST:-64M}"
+read_input -rp "    memory_limit         [256M]:  " INI_MEMORY;    INI_MEMORY="${INI_MEMORY:-256M}"
+read_input -rp "    max_execution_time   [60]:    " INI_EXEC_TIME; INI_EXEC_TIME="${INI_EXEC_TIME:-60}"
+read_input -rp "    date.timezone        [UTC]:   " INI_TIMEZONE;  INI_TIMEZONE="${INI_TIMEZONE:-UTC}"
+read_input -rp "    opcache.memory_consumption    [128]:  " INI_OPC_MEM;   INI_OPC_MEM="${INI_OPC_MEM:-128}"
+read_input -rp "    opcache.max_accelerated_files [10000]:" INI_OPC_FILES; INI_OPC_FILES="${INI_OPC_FILES:-10000}"
+read_input -rp "    opcache.revalidate_freq       [0]:    " INI_OPC_FREQ;  INI_OPC_FREQ="${INI_OPC_FREQ:-0}"
 echo ""
 
 info "Tuning PHP INI at ${PHP_INI}..."
@@ -314,7 +312,7 @@ success "PHP INI tuned."
 
 # ─── Nginx site config ─────────────────────────────────────────────────────────
 echo ""
-read -rp "  Laravel directory name [laravel]: " APP_DIR
+read_input -rp "  Laravel directory name [laravel]: " APP_DIR
 APP_DIR="${APP_DIR:-laravel}"
 echo ""
 
@@ -394,7 +392,7 @@ nginx -t && systemctl reload nginx
 success "Nginx site config written and reloaded."
 
 # ─── Composer ──────────────────────────────────────────────────────────────────
-read -rp "  Install Composer? [Y/n]: " INSTALL_COMPOSER
+read_input -rp "  Install Composer? [Y/n]: " INSTALL_COMPOSER
 INSTALL_COMPOSER="${INSTALL_COMPOSER:-Y}"
 echo ""
 

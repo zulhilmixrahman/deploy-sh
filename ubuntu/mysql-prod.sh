@@ -13,12 +13,10 @@ info()    { echo -e "${BLUE}[INFO]${NC}  $*"; }
 success() { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
+read_input() { read "$@" </dev/tty || true; }
 
 # ─── Root check ────────────────────────────────────────────────────────────────
 [[ $EUID -ne 0 ]] && error "Run this script as root or with sudo."
-
-# Re-attach stdin to the terminal so read prompts work when piped via curl | bash
-[[ -t 0 ]] || exec < /dev/tty
 
 # ─── Detect total RAM (MB) for buffer pool default ─────────────────────────────
 TOTAL_RAM_MB=$(awk '/MemTotal/ { printf "%d", $2/1024 }' /proc/meminfo)
@@ -40,7 +38,7 @@ echo "    1) MySQL 8.0  (LTS)"
 echo "    2) MySQL 8.4  (LTS)"
 echo "    3) MySQL 9.1  (Innovation)"
 echo ""
-read -rp "  Select MySQL version [default: 2]: " ver_choice
+read_input -rp "  Select MySQL version [default: 2]: " ver_choice
 echo ""
 
 case "${ver_choice:-2}" in
@@ -58,37 +56,37 @@ echo "  Production tuning (press Enter to keep default):"
 echo "  Server RAM detected: ${TOTAL_RAM_MB}MB"
 echo ""
 
-read -rp "    innodb_buffer_pool_size  [${DEFAULT_BUFFER_POOL}]: " T_BUFFER_POOL
+read_input -rp "    innodb_buffer_pool_size  [${DEFAULT_BUFFER_POOL}]: " T_BUFFER_POOL
 T_BUFFER_POOL="${T_BUFFER_POOL:-$DEFAULT_BUFFER_POOL}"
 
-read -rp "    max_connections          [151]:  " T_MAX_CONN
+read_input -rp "    max_connections          [151]:  " T_MAX_CONN
 T_MAX_CONN="${T_MAX_CONN:-151}"
 
-read -rp "    innodb_log_file_size     [256M]: " T_LOG_FILE
+read_input -rp "    innodb_log_file_size     [256M]: " T_LOG_FILE
 T_LOG_FILE="${T_LOG_FILE:-256M}"
 
-read -rp "    innodb_flush_log_at_trx_commit [1]: " T_FLUSH_LOG
+read_input -rp "    innodb_flush_log_at_trx_commit [1]: " T_FLUSH_LOG
 T_FLUSH_LOG="${T_FLUSH_LOG:-1}"
 
-read -rp "    slow_query_log           [ON]:   " T_SLOW_LOG
+read_input -rp "    slow_query_log           [ON]:   " T_SLOW_LOG
 T_SLOW_LOG="${T_SLOW_LOG:-ON}"
 
-read -rp "    long_query_time (seconds)[2]:    " T_LONG_QUERY
+read_input -rp "    long_query_time (seconds)[2]:    " T_LONG_QUERY
 T_LONG_QUERY="${T_LONG_QUERY:-2}"
 
-read -rp "    max_allowed_packet       [64M]:  " T_MAX_PACKET
+read_input -rp "    max_allowed_packet       [64M]:  " T_MAX_PACKET
 T_MAX_PACKET="${T_MAX_PACKET:-64M}"
 
-read -rp "    table_open_cache         [4000]: " T_TABLE_CACHE
+read_input -rp "    table_open_cache         [4000]: " T_TABLE_CACHE
 T_TABLE_CACHE="${T_TABLE_CACHE:-4000}"
 
-read -rp "    thread_cache_size        [8]:    " T_THREAD_CACHE
+read_input -rp "    thread_cache_size        [8]:    " T_THREAD_CACHE
 T_THREAD_CACHE="${T_THREAD_CACHE:-8}"
 
 echo ""
 
 # ─── Remote access ─────────────────────────────────────────────────────────────
-read -rp "  Allow remote connections? [y/N]: " REMOTE_ACCESS
+read_input -rp "  Allow remote connections? [y/N]: " REMOTE_ACCESS
 REMOTE_ACCESS="${REMOTE_ACCESS,,}"
 
 BIND_ADDR="127.0.0.1"
@@ -97,18 +95,18 @@ REMOTE_PASS=""
 REMOTE_HOST="%"
 
 if [[ "$REMOTE_ACCESS" == "y" || "$REMOTE_ACCESS" == "yes" ]]; then
-    read -rp "    bind-address (0.0.0.0 = all interfaces) [0.0.0.0]: " BIND_ADDR
+    read_input -rp "    bind-address (0.0.0.0 = all interfaces) [0.0.0.0]: " BIND_ADDR
     BIND_ADDR="${BIND_ADDR:-0.0.0.0}"
 
-    read -rp "    Create a dedicated remote user? [y/N]: " CREATE_REMOTE_USER
+    read_input -rp "    Create a dedicated remote user? [y/N]: " CREATE_REMOTE_USER
     if [[ "${CREATE_REMOTE_USER,,}" == "y" || "${CREATE_REMOTE_USER,,}" == "yes" ]]; then
-        read -rp "      Remote username [remoteuser]: " REMOTE_USER
+        read_input -rp "      Remote username [remoteuser]: " REMOTE_USER
         REMOTE_USER="${REMOTE_USER:-remoteuser}"
-        read -rp "      Allowed host/IP ('%' = any host) [%]: " REMOTE_HOST
+        read_input -rp "      Allowed host/IP ('%' = any host) [%]: " REMOTE_HOST
         REMOTE_HOST="${REMOTE_HOST:-%}"
         while true; do
-            read -rsp "      Password for '${REMOTE_USER}': " REMOTE_PASS; echo ""
-            read -rsp "      Confirm password: " REMOTE_PASS2; echo ""
+            read_input -rsp "      Password for '${REMOTE_USER}': " REMOTE_PASS; echo ""
+            read_input -rsp "      Confirm password: " REMOTE_PASS2; echo ""
             [[ "$REMOTE_PASS" == "$REMOTE_PASS2" ]] && break
             warn "Passwords do not match. Try again."
         done
