@@ -17,6 +17,9 @@ error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 # ─── Root check ────────────────────────────────────────────────────────────────
 [[ $EUID -ne 0 ]] && error "Run this script as root or with sudo."
 
+# Re-attach stdin to the terminal so read prompts work when piped via curl | bash
+[[ -t 0 ]] || exec < /dev/tty
+
 # ─── Detect RAM for tuning defaults ───────────────────────────────────────────
 TOTAL_RAM_MB=$(awk '/MemTotal/ { printf "%d", $2/1024 }' /proc/meminfo)
 
