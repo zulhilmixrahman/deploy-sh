@@ -5,7 +5,7 @@ Combines Nginx, PHP-FPM, and MySQL Server in a single interactive script with de
 
 ## What it installs
 
-- **Nginx** (Ondřej Surý PPA) with a global tuning config
+- **Nginx** (nginx.org official repo) with a global tuning config
 - **PHP-FPM** (Ondřej Surý PPA) — your chosen version, with common Laravel extensions and Xdebug
 - **MySQL Server** (Ubuntu default repository) — your chosen version
 - **Composer** (optional, with checksum verification)

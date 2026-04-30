@@ -50,8 +50,9 @@ curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/ubun
 
 Installs and configures a production-grade Laravel web stack:
 
-- **Nginx** from the Ondřej Surý PPA with a hardened global config (gzip, security headers, static-asset caching, `server_tokens off`)
+- **Nginx** from the nginx.org official repo with a hardened global config (gzip, security headers, static-asset caching, `server_tokens off`)
 - **PHP-FPM** (choose 7.4–8.4) from the Ondřej Surý PPA with all Laravel-required extensions (`mbstring`, `xml`, `bcmath`, `curl`, `zip`, `gd`, `intl`, `opcache`, `redis`)
+
 - **Database driver** — choose MySQL/MariaDB, PostgreSQL, or SQLite at install time
 - **OPcache** tuned for production with JIT enabled (`opcache.jit=tracing`)
 - **PHP INI** hardened: `expose_php=Off`, `display_errors=Off`, secure session cookies

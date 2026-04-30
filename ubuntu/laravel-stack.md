@@ -4,7 +4,7 @@ Installs **Nginx + PHP-FPM** on Ubuntu for running a Laravel application.
 
 ## What it installs
 
-- Nginx (latest stable via `ppa:ondrej/nginx`)
+- Nginx (latest stable via nginx.org official repo)
 - PHP-FPM (your chosen version via `ppa:ondrej/php`)
 - PHP extensions required by Laravel (mbstring, xml, bcmath, curl, zip, gd, intl, opcache, redis, tokenizer + your chosen DB driver)
 - Composer (optional)
