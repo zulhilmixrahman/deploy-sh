@@ -320,7 +320,7 @@ read_input -rp "  Laravel directory name [laravel]: " APP_DIR
 APP_DIR="${APP_DIR:-laravel}"
 echo ""
 
-NGINX_CONF="/etc/nginx/sites-available/${APP_DIR}"
+NGINX_CONF="/etc/nginx/conf.d/${APP_DIR}.conf"
 WEBROOT="/var/www/${APP_DIR}/public"
 
 info "Writing Nginx site config..."
@@ -349,8 +349,8 @@ server {
 
     # PHP-FPM
     location ~ \.php$ {
-        include snippets/fastcgi-php.conf;
         fastcgi_pass unix:/run/php/php${PHP_VER}-fpm.sock;
+        fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
         include fastcgi_params;
         fastcgi_hide_header X-Powered-By;
@@ -389,8 +389,8 @@ server {
 }
 NGINX
 
-ln -sf "$NGINX_CONF" "/etc/nginx/sites-enabled/${APP_DIR}"
-[[ -L /etc/nginx/sites-enabled/default ]] && rm -f /etc/nginx/sites-enabled/default
+# Remove the default catch-all server block shipped by the nginx.org package
+rm -f /etc/nginx/conf.d/default.conf
 
 nginx -t && systemctl reload nginx
 success "Nginx site config written and reloaded."
