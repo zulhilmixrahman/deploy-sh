@@ -28,12 +28,12 @@ DEFAULT_BUFFER_POOL="${DEFAULT_BUFFER_POOL}M"
 
 echo ""
 echo "  ┌─────────────────────────────────────────────┐"
-echo "  │   MySQL Community Installer + Tuning (Prod)  │"
+echo "  │   MySQL Installer + Tuning (Prod)             │"
 echo "  └─────────────────────────────────────────────┘"
 echo ""
 
 # ─── MySQL version selection ───────────────────────────────────────────────────
-echo "  Available MySQL versions:"
+echo "  Available MySQL versions (Ubuntu default repo):"
 echo "    1) MySQL 8.0  (LTS)"
 echo "    2) MySQL 8.4  (LTS)"
 echo "    3) MySQL 9.1  (Innovation)"
@@ -42,14 +42,11 @@ read_input -rp "  Select MySQL version [default: 2]: " ver_choice
 echo ""
 
 case "${ver_choice:-2}" in
-    1) MYSQL_VER="8.0"  ; APT_SERIES="mysql-8.0"  ;;
-    2) MYSQL_VER="8.4"  ; APT_SERIES="mysql-8.4"  ;;
-    3) MYSQL_VER="9.1"  ; APT_SERIES="mysql-9.1"  ;;
-    *) MYSQL_VER="8.4"  ; APT_SERIES="mysql-8.4"  ;;
+    1) MYSQL_VER="8.0" ;;
+    2) MYSQL_VER="8.4" ;;
+    3) MYSQL_VER="9.1" ;;
+    *) MYSQL_VER="8.4" ;;
 esac
-
-# Internal bootstrap password — used once to configure auth_socket, never shown to user
-MYSQL_ROOT_PASS=$(openssl rand -base64 32 | tr -d '/+=')
 
 # ─── Production tuning prompts ─────────────────────────────────────────────────
 echo "  Production tuning (press Enter to keep default):"
@@ -127,36 +124,11 @@ apt-get install -y -qq \
     apt-transport-https \
     debconf-utils
 
-# ─── MySQL APT repository ──────────────────────────────────────────────────────
-if ! dpkg -l | grep -q "mysql-apt-config"; then
-    info "Adding MySQL Community APT repository..."
-    TMPDIR=$(mktemp -d)
-    curl -fsSL "https://dev.mysql.com/get/mysql-apt-config_0.8.33-1_all.deb" -o "${TMPDIR}/mysql-apt-config.deb"
-
-    # Pre-seed apt-config selection to avoid interactive prompt
-    echo "mysql-apt-config mysql-apt-config/select-server select ${APT_SERIES}" \
-        | debconf-set-selections
-    echo "mysql-apt-config mysql-apt-config/select-product select Ok" \
-        | debconf-set-selections
-
-    DEBIAN_FRONTEND=noninteractive dpkg -i "${TMPDIR}/mysql-apt-config.deb"
-    rm -rf "$TMPDIR"
-    apt-get update -qq
-    success "MySQL APT repository configured for MySQL ${MYSQL_VER}."
-else
-    info "MySQL APT repository already present."
-fi
-
 # ─── Install MySQL ─────────────────────────────────────────────────────────────
-info "Installing MySQL ${MYSQL_VER} Community Server..."
+info "Installing MySQL ${MYSQL_VER} from Ubuntu default repo..."
 
-# Pre-seed root password to avoid interactive prompt during install
-debconf-set-selections <<< "mysql-community-server mysql-community-server/root-pass password ${MYSQL_ROOT_PASS}"
-debconf-set-selections <<< "mysql-community-server mysql-community-server/re-root-pass password ${MYSQL_ROOT_PASS}"
-debconf-set-selections <<< "mysql-server mysql-server/root_password password ${MYSQL_ROOT_PASS}"
-debconf-set-selections <<< "mysql-server mysql-server/root_password_again password ${MYSQL_ROOT_PASS}"
-
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mysql-community-server
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "mysql-server-${MYSQL_VER}" || \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mysql-server
 
 systemctl enable mysql
 systemctl start mysql
@@ -165,7 +137,8 @@ success "MySQL ${MYSQL_VER} installed and running."
 # ─── Secure installation (non-interactive) ────────────────────────────────────
 info "Securing MySQL installation..."
 
-mysql -uroot -p"${MYSQL_ROOT_PASS}" <<SQL
+# Ubuntu's default mysql-server uses auth_socket for root — connect without password
+mysql -uroot <<SQL
 -- Remove anonymous users
 DELETE FROM mysql.user WHERE User='';
 
@@ -176,14 +149,10 @@ DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.
 DROP DATABASE IF EXISTS test;
 DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
 
--- Switch root to OS socket auth — no password needed when running as OS root
-ALTER USER 'root'@'localhost' IDENTIFIED WITH auth_socket;
-
 FLUSH PRIVILEGES;
 SQL
 
-unset MYSQL_ROOT_PASS
-success "MySQL secured. Root login uses OS socket auth (no password)."
+success "MySQL secured. Root login uses OS socket auth (sudo mysql or mysql as root)."
 
 # ─── Remote user ───────────────────────────────────────────────────────────────
 if [[ -n "$REMOTE_USER" ]]; then
