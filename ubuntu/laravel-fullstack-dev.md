@@ -1,13 +1,13 @@
 # ubuntu/laravel-fullstack-dev.sh
 
 Installs a complete **Laravel fullstack environment** on Ubuntu for staging and development.  
-Combines Nginx, PHP-FPM, and MySQL Community Server in a single interactive script with dev-friendly defaults.
+Combines Nginx, PHP-FPM, and MySQL Server in a single interactive script with dev-friendly defaults.
 
 ## What it installs
 
 - **Nginx** (Ondřej Surý PPA) with a global tuning config
 - **PHP-FPM** (Ondřej Surý PPA) — your chosen version, with common Laravel extensions and Xdebug
-- **MySQL Community Server** (official MySQL APT repository) — your chosen version
+- **MySQL Server** (Ubuntu default repository) — your chosen version
 - **Composer** (optional, with checksum verification)
 
 ## Interactive prompts

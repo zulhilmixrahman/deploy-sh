@@ -13,7 +13,7 @@ Production-ready shell scripts for setting up linux servers. Each script is inte
 |--------|-----------------|
 | [ubuntu/laravel-stack.sh](ubuntu/laravel-stack.sh) | Nginx + PHP-FPM (7.4–8.4) for Laravel — production |
 | [ubuntu/laravel-fullstack-dev.sh](ubuntu/laravel-fullstack-dev.sh) | Nginx + PHP-FPM + MySQL — staging / development |
-| [ubuntu/mysql-prod.sh](ubuntu/mysql-prod.sh) | MySQL Community (8.0 / 8.4 / 9.1) — production tuning |
+| [ubuntu/mysql-prod.sh](ubuntu/mysql-prod.sh) | MySQL (8.0 / 8.4 / 9.1, Ubuntu default repo) — production tuning |
 | [ubuntu/postgresql-prod.sh](ubuntu/postgresql-prod.sh) | PostgreSQL (13–17) — production tuning |
 
 ## Usage
@@ -33,7 +33,7 @@ curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/ubun
 # Laravel fullstack for staging/dev (Nginx + PHP-FPM + MySQL)
 curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/ubuntu/laravel-fullstack-dev.sh | sudo bash
 
-# MySQL Community production install
+# MySQL production install
 curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/ubuntu/mysql-prod.sh | sudo bash
 
 # PostgreSQL production install
@@ -69,7 +69,7 @@ All pool sizes (PHP-FPM `pm.max_children`, etc.) are calculated from detected RA
 All-in-one installer for a local dev or staging environment:
 
 - Everything from `laravel-stack.sh` (Nginx + PHP-FPM)
-- **MySQL Community** (8.0 LTS / 8.4 LTS / 9.1 Innovation) via the official MySQL APT repo
+- **MySQL** (8.0 LTS / 8.4 LTS / 9.1 Innovation) from the Ubuntu default repository
 - **Xdebug** installed and pre-configured in `develop` mode (switch to `xdebug.mode=debug` to activate step debugging on port 9003)
 - `display_errors=On` and `display_startup_errors=On` for easier debugging
 - MySQL tuned conservatively (30% RAM for buffer pool, slow query log, optional general log)
@@ -78,12 +78,12 @@ All-in-one installer for a local dev or staging environment:
 
 ---
 
-### `mysql-prod.sh` — MySQL Community production install
+### `mysql-prod.sh` — MySQL production install
 
-Installs MySQL Community Server with a production-hardened configuration:
+Installs MySQL Server from the Ubuntu default repository with a production-hardened configuration:
 
 - Chooses MySQL **8.0 LTS**, **8.4 LTS** (default), or **9.1 Innovation**
-- **Non-interactive install** — root password is set internally, then switched to `auth_socket` so OS root connects without a password
+- **Non-interactive install** — Ubuntu's default `mysql-server` uses `auth_socket` for root out of the box; no bootstrap password required
 - Removes anonymous users, test database, and remote root access
 - Writes `/etc/mysql/conf.d/production.cnf` with tunable values:
   - `innodb_buffer_pool_size` (default: 70% of RAM)

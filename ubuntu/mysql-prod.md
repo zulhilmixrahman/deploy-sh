@@ -1,10 +1,10 @@
-# ubuntu/mysql-production.sh
+# ubuntu/mysql-prod.sh
 
-Installs and hardens **MySQL Community Server** on Ubuntu for production use.
+Installs and hardens **MySQL Server** on Ubuntu for production use.
 
 ## What it installs
 
-- MySQL Community Server (your chosen version via the official MySQL APT repository)
+- MySQL Server (your chosen version from the Ubuntu default repository)
 - Production-tuned `my.cnf` written to `/etc/mysql/conf.d/production.cnf`
 
 ## Interactive prompts
@@ -46,7 +46,7 @@ mysql -uroot
 - Anonymous users removed
 - Remote root login disabled
 - Test database removed
-- Root switched to `auth_socket` (OS-level authentication only)
+- Root uses `auth_socket` by default (Ubuntu default package behaviour)
 
 ## After installation
 
