@@ -91,13 +91,13 @@ bind-address                   = 127.0.0.1   # 0.0.0.0 if remote enabled
 > Requires Ubuntu 20.04 / 22.04 / 24.04. Must be run as root or with `sudo`.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/ubuntu/mysql-production.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/ubuntu/mysql-prod.sh | sudo bash
 ```
 
 Or download first and review before running:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/ubuntu/mysql-production.sh -o mysql-production.sh
-chmod +x mysql-production.sh
-sudo ./mysql-production.sh
+curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/ubuntu/mysql-prod.sh -o mysql-prod.sh
+chmod +x mysql-prod.sh
+sudo ./mysql-prod.sh
 ```

@@ -1,4 +1,4 @@
-# ubuntu/postgresql-production.sh
+# ubuntu/postgresql-prod.sh
 
 Installs and hardens **PostgreSQL** on Ubuntu for production use.
 
@@ -96,13 +96,13 @@ Storage-type tuning:
 > Requires Ubuntu 20.04 / 22.04 / 24.04. Must be run as root or with `sudo`.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/ubuntu/postgresql-production.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/ubuntu/postgresql-prod.sh | sudo bash
 ```
 
 Or download first and review before running:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/ubuntu/postgresql-production.sh -o postgresql-production.sh
-chmod +x postgresql-production.sh
-sudo ./postgresql-production.sh
+curl -fsSL https://raw.githubusercontent.com/zulhilmixrahman/deploy-sh/main/ubuntu/postgresql-prod.sh -o postgresql-prod.sh
+chmod +x postgresql-prod.sh
+sudo ./postgresql-prod.sh
 ```

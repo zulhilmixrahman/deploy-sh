@@ -65,6 +65,19 @@ for v in "${SUPPORTED_VERSIONS[@]}"; do
 done
 $valid || error "Unsupported PHP version '$PHP_VER'. Choose from: ${SUPPORTED_VERSIONS[*]}"
 
+# ─── PHP package source selection ──────────────────────────────────────────────
+if [[ -n "${PHP_REPO:-}" ]]; then
+    repo_choice="$PHP_REPO"
+else
+    echo ""
+    echo "  PHP package source:"
+    echo "    1) ppa:ondrej/php (latest PHP releases, recommended)"
+    echo "    2) Ubuntu default repository (no PPA)"
+    echo ""
+    read_input -rp "  Select PHP source [default: 1]: " repo_choice
+    repo_choice="${repo_choice:-1}"
+fi
+
 info "Installing Nginx + PHP ${PHP_VER} for Laravel on Ubuntu"
 echo ""
 
@@ -84,19 +97,23 @@ apt-get install -y -qq \
     git
 
 # ─── Repositories ────────────────────────────────────────────────────────────
-info "Adding official Nginx stable repository..."
-curl -fsSL https://nginx.org/keys/nginx_signing.key \
-    | gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
-https://nginx.org/packages/ubuntu $(lsb_release -cs) nginx" \
-    > /etc/apt/sources.list.d/nginx.list
-info "Adding Ondřej Surý PHP PPA..."
-add-apt-repository -y ppa:ondrej/php
-apt-get update -qq
-success "Nginx (nginx.org) and Ondřej Surý PHP repositories ready."
+if [[ "$repo_choice" == "1" ]]; then
+    info "Adding Ondřej Surý PHP PPA..."
+    if timeout 30 add-apt-repository -y ppa:ondrej/php && timeout 60 apt-get update -qq; then
+        success "Ondřej Surý PHP repository ready."
+    else
+        warn "Could not reach ppa:ondrej/php (connection timeout). Falling back to Ubuntu default PHP repository."
+        add-apt-repository -y --remove ppa:ondrej/php >/dev/null 2>&1 || true
+        apt-get update -qq
+        success "Using Ubuntu default PHP repository."
+    fi
+else
+    info "Using Ubuntu default PHP repository (skipping ppa:ondrej/php)."
+    apt-get update -qq
+fi
 
 # ─── Nginx ─────────────────────────────────────────────────────────────────────
-info "Installing Nginx..."
+info "Installing Nginx (Ubuntu default repository)..."
 apt-get install -y -qq nginx
 systemctl enable nginx
 systemctl start nginx
@@ -320,7 +337,7 @@ read_input -rp "  Laravel directory name [laravel]: " APP_DIR
 APP_DIR="${APP_DIR:-laravel}"
 echo ""
 
-NGINX_CONF="/etc/nginx/conf.d/${APP_DIR}.conf"
+NGINX_CONF="/etc/nginx/sites-available/${APP_DIR}"
 WEBROOT="/var/www/${APP_DIR}/public"
 
 info "Writing Nginx site config..."
@@ -389,8 +406,10 @@ server {
 }
 NGINX
 
-# Remove the default catch-all server block shipped by the nginx.org package
-rm -f /etc/nginx/conf.d/default.conf
+# Remove the default catch-all site shipped by the Ubuntu nginx package
+rm -f /etc/nginx/sites-enabled/default
+
+ln -sf "$NGINX_CONF" "/etc/nginx/sites-enabled/${APP_DIR}"
 
 nginx -t && systemctl reload nginx
 success "Nginx site config written and reloaded."

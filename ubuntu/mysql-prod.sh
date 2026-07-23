@@ -214,7 +214,7 @@ mkdir -p /var/log/mysql
 chown mysql:mysql /var/log/mysql
 
 # Validate and reload
-mysqld --validate-config --defaults-extra-file="$MYCNF_PROD" 2>/dev/null \
+mysqld --user=mysql --validate-config --defaults-extra-file="$MYCNF_PROD" \
     || error "MySQL config validation failed. Check ${MYCNF_PROD}."
 
 systemctl restart mysql
