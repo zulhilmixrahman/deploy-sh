@@ -43,6 +43,33 @@ print_box() {
 # ─── Root check ────────────────────────────────────────────────────────────────
 [[ $EUID -ne 0 ]] && error "Run this script as root or with sudo."
 
+# ─── Re-run guard ──────────────────────────────────────────────────────────────
+# A previous run leaves production.cnf behind. On a configured server, a re-run
+# would overwrite tuning (incl. bind-address) and restart MySQL, so require an
+# explicit confirmation and skip the steps that touch users and databases.
+MYCNF_PROD="/etc/mysql/conf.d/production.cnf"
+ALREADY_CONFIGURED=false
+
+if [[ -f "$MYCNF_PROD" ]] && command -v mysql &>/dev/null; then
+    ALREADY_CONFIGURED=true
+    USER_DBS=$(mysql -uroot -N -e "SELECT schema_name FROM information_schema.schemata
+        WHERE schema_name NOT IN ('mysql','information_schema','performance_schema','sys');" \
+        2>/dev/null | paste -sd ' ' - || true)
+
+    echo ""
+    warn "MySQL has already been configured by this script on this server."
+    warn "Existing config: ${MYCNF_PROD}"
+    [[ -n "$USER_DBS" ]] && warn "Existing databases: ${USER_DBS}"
+    echo ""
+    echo "  Re-running will:"
+    echo "    - overwrite ${MYCNF_PROD} with the values you enter (a backup is kept)"
+    echo "    - restart MySQL, dropping all active connections"
+    echo "  It will NOT touch existing users, grants or databases."
+    echo ""
+    read_input -rp "  Type 'yes' to continue: " RERUN_CONFIRM
+    [[ "$RERUN_CONFIRM" == "yes" ]] || { info "Aborted. Nothing was changed."; exit 0; }
+fi
+
 # ─── Detect total RAM (MB) for buffer pool default ─────────────────────────────
 TOTAL_RAM_MB=$(awk '/MemTotal/ { printf "%d", $2/1024 }' /proc/meminfo)
 DEFAULT_BUFFER_POOL="${TOTAL_RAM_MB%.*}"
@@ -150,20 +177,32 @@ apt-get install -y -qq \
     debconf-utils
 
 # ─── Install MySQL ─────────────────────────────────────────────────────────────
-info "Installing MySQL ${MYSQL_VER} from Ubuntu default repo..."
+# Each Ubuntu release ships a single MySQL series — check the chosen one exists
+# before installing, otherwise fall back to the release's default mysql-server.
+if apt-cache show "mysql-server-${MYSQL_VER}" &>/dev/null; then
+    MYSQL_PKG="mysql-server-${MYSQL_VER}"
+    info "Installing MySQL ${MYSQL_VER} from Ubuntu default repo..."
+else
+    MYSQL_PKG="mysql-server"
+    warn "MySQL ${MYSQL_VER} is not available in this Ubuntu release's repo."
+    info "Installing the default mysql-server package instead..."
+fi
 
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "mysql-server-${MYSQL_VER}" || \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mysql-server
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$MYSQL_PKG"
 
 systemctl enable mysql
 systemctl start mysql
-success "MySQL ${MYSQL_VER} installed and running."
+MYSQL_INSTALLED_VER=$(mysqld --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+success "MySQL ${MYSQL_INSTALLED_VER} installed and running."
 
 # ─── Secure installation (non-interactive) ────────────────────────────────────
-info "Securing MySQL installation..."
+if $ALREADY_CONFIGURED; then
+    info "Skipping secure installation (already done on a previous run)."
+else
+    info "Securing MySQL installation..."
 
-# Ubuntu's default mysql-server uses auth_socket for root — connect without password
-mysql -uroot <<SQL
+    # Ubuntu's default mysql-server uses auth_socket for root — connect without password
+    mysql -uroot <<SQL
 -- Remove anonymous users
 DELETE FROM mysql.user WHERE User='';
 
@@ -177,10 +216,19 @@ DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
 FLUSH PRIVILEGES;
 SQL
 
-success "MySQL secured. Root login uses OS socket auth (sudo mysql or mysql as root)."
+    success "MySQL secured. Root login uses OS socket auth (sudo mysql or mysql as root)."
+fi
 
 # ─── Remote user ───────────────────────────────────────────────────────────────
+REMOTE_USER_EXISTS=0
 if [[ -n "$REMOTE_USER" ]]; then
+    REMOTE_USER_EXISTS=$(mysql -uroot -N -e "SELECT COUNT(*) FROM mysql.user
+        WHERE User='${REMOTE_USER}' AND Host='${REMOTE_HOST}';")
+fi
+
+if [[ -n "$REMOTE_USER" && "$REMOTE_USER_EXISTS" != "0" ]]; then
+    warn "User '${REMOTE_USER}'@'${REMOTE_HOST}' already exists — leaving its password and grants unchanged."
+elif [[ -n "$REMOTE_USER" ]]; then
     info "Creating remote user '${REMOTE_USER}'@'${REMOTE_HOST}'..."
     mysql -uroot <<SQL
 CREATE USER IF NOT EXISTS '${REMOTE_USER}'@'${REMOTE_HOST}' IDENTIFIED BY '${REMOTE_PASS}';
@@ -191,7 +239,12 @@ SQL
 fi
 
 # ─── Production my.cnf tuning ─────────────────────────────────────────────────
-MYCNF_PROD="/etc/mysql/conf.d/production.cnf"
+if [[ -f "$MYCNF_PROD" ]]; then
+    MYCNF_BACKUP="${MYCNF_PROD}.bak.$(date +%Y%m%d%H%M%S)"
+    cp -a "$MYCNF_PROD" "$MYCNF_BACKUP"
+    info "Existing config backed up to ${MYCNF_BACKUP}"
+fi
+
 info "Writing production config to ${MYCNF_PROD}..."
 
 cat > "$MYCNF_PROD" <<CNF
