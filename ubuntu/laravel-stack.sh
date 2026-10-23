@@ -31,7 +31,7 @@ DEFAULT_FPM_MAX_SPARE=$(( DEFAULT_FPM_MAX / 2 > 2 ? DEFAULT_FPM_MAX / 2 : 3 ))
 
 echo ""
 echo "  ┌─────────────────────────────────────────┐"
-echo "  │   Laravel Stack Installer (Nginx + PHP)  │"
+echo "  │  Laravel Stack Installer (Nginx + PHP)  │"
 echo "  └─────────────────────────────────────────┘"
 echo "  RAM: ${TOTAL_RAM_MB}MB  |  CPUs: ${CPU_CORES}"
 echo ""
@@ -138,11 +138,26 @@ NGX_GZIP="${NGX_GZIP:-on}"
 echo ""
 
 info "Writing Nginx global production config..."
+NGINX_MAIN_CONF="/etc/nginx/nginx.conf"
+
+# conf.d/*.conf is included inside the http block, so http-level directives that
+# Ubuntu's nginx.conf already sets must be commented out there to avoid
+# "directive is duplicate" errors.
+for directive in server_tokens keepalive_timeout keepalive_requests \
+                 client_max_body_size sendfile tcp_nopush tcp_nodelay \
+                 gzip gzip_vary gzip_proxied gzip_comp_level gzip_min_length gzip_types; do
+    sed -i -E "s/^([[:space:]]*)(${directive}[[:space:]])/\1# \2/" "$NGINX_MAIN_CONF"
+done
+
+# worker_rlimit_nofile is only valid in the main context — set it in nginx.conf
+if grep -qE '^[[:space:]]*worker_rlimit_nofile' "$NGINX_MAIN_CONF"; then
+    sed -i -E 's/^[[:space:]]*worker_rlimit_nofile[[:space:]]+[0-9]+;/worker_rlimit_nofile 65535;/' "$NGINX_MAIN_CONF"
+else
+    sed -i '/^events[[:space:]]*{/i worker_rlimit_nofile 65535;\n' "$NGINX_MAIN_CONF"
+fi
+
 NGINX_PROD_CONF="/etc/nginx/conf.d/production.conf"
 cat > "$NGINX_PROD_CONF" <<NGX
-# ── Process ───────────────────────────────────────────────────────────────────
-worker_rlimit_nofile 65535;
-
 # ── Security ──────────────────────────────────────────────────────────────────
 server_tokens off;
 
@@ -178,13 +193,12 @@ gzip_types
     font/truetype font/opentype application/vnd.ms-fontobject;
 NGX
 
-# Set worker_connections in events block via included snippet
-NGINX_EVENTS_CONF="/etc/nginx/conf.d/events.conf"
 # worker_connections lives inside the events block — patch nginx.conf directly
-sed -i "s/worker_connections [0-9]\+;/worker_connections ${NGX_WORKER_CONN};/" \
-    /etc/nginx/nginx.conf
+sed -i -E "s/worker_connections[[:space:]]+[0-9]+;/worker_connections ${NGX_WORKER_CONN};/" \
+    "$NGINX_MAIN_CONF"
 
-nginx -t && systemctl reload nginx
+nginx -t || error "Nginx config test failed — see output above."
+systemctl reload nginx
 success "Nginx global production config applied."
 
 # ─── Database selection ────────────────────────────────────────────────────────
@@ -261,8 +275,8 @@ sed -i "s/^pm.max_children = .*/pm.max_children = ${FPM_MAX_CHILDREN}/" "$FPM_PO
 sed -i "s/^pm.start_servers = .*/pm.start_servers = ${FPM_START}/"      "$FPM_POOL_CONF"
 sed -i "s/^pm.min_spare_servers = .*/pm.min_spare_servers = ${FPM_MIN_SPARE}/" "$FPM_POOL_CONF"
 sed -i "s/^pm.max_spare_servers = .*/pm.max_spare_servers = ${FPM_MAX_SPARE}/" "$FPM_POOL_CONF"
-sed -i "s/^;pm.max_requests = .*/pm.max_requests = ${FPM_MAX_REQUESTS}/" "$FPM_POOL_CONF"
-# Uncomment if commented
+# Matches both the commented default and a value set by a previous run
+sed -i "s/^;\?pm.max_requests = .*/pm.max_requests = ${FPM_MAX_REQUESTS}/" "$FPM_POOL_CONF"
 grep -q "^pm.max_requests" "$FPM_POOL_CONF" \
     || echo "pm.max_requests = ${FPM_MAX_REQUESTS}" >> "$FPM_POOL_CONF"
 
@@ -294,7 +308,7 @@ sed -i "s/^upload_max_filesize = .*/upload_max_filesize = ${INI_UPLOAD}/"  "$PHP
 sed -i "s/^post_max_size = .*/post_max_size = ${INI_POST}/"                "$PHP_INI"
 sed -i "s/^memory_limit = .*/memory_limit = ${INI_MEMORY}/"                "$PHP_INI"
 sed -i "s/^max_execution_time = .*/max_execution_time = ${INI_EXEC_TIME}/" "$PHP_INI"
-sed -i "s|^;date.timezone =.*|date.timezone = ${INI_TIMEZONE}|"            "$PHP_INI"
+sed -i "s|^;\?date.timezone =.*|date.timezone = ${INI_TIMEZONE}|"          "$PHP_INI"
 
 # Production security hardening
 sed -i 's/^expose_php = On/expose_php = Off/'                 "$PHP_INI"
@@ -304,9 +318,9 @@ sed -i 's/^log_errors = Off/log_errors = On/'                "$PHP_INI"
 sed -i 's/^;error_log = php_errors.log/error_log = \/var\/log\/php\/fpm-error.log/' "$PHP_INI"
 
 # Session hardening
-sed -i 's/^;session.cookie_secure =.*/session.cookie_secure = 1/'     "$PHP_INI"
-sed -i 's/^session.cookie_httponly =.*/session.cookie_httponly = 1/'  "$PHP_INI"
-sed -i 's/^;session.use_strict_mode =.*/session.use_strict_mode = 1/' "$PHP_INI"
+sed -i 's/^;\?session.cookie_secure =.*/session.cookie_secure = 1/'     "$PHP_INI"
+sed -i 's/^session.cookie_httponly =.*/session.cookie_httponly = 1/'    "$PHP_INI"
+sed -i 's/^;\?session.use_strict_mode =.*/session.use_strict_mode = 1/' "$PHP_INI"
 sed -i 's/^session.cookie_samesite =.*/session.cookie_samesite = "Lax"/' "$PHP_INI"
 
 mkdir -p /var/log/php
@@ -339,6 +353,16 @@ echo ""
 
 NGINX_CONF="/etc/nginx/sites-available/${APP_DIR}"
 WEBROOT="/var/www/${APP_DIR}/public"
+
+# Back up an existing site config (e.g. server_name edits or certbot SSL blocks)
+# before overwriting it. sites-available is not included by nginx, so the
+# backup stays inactive.
+if [[ -f "$NGINX_CONF" ]]; then
+    NGINX_CONF_BACKUP="${NGINX_CONF}.bak.$(date +%Y%m%d%H%M%S)"
+    cp -a "$NGINX_CONF" "$NGINX_CONF_BACKUP"
+    warn "Existing ${NGINX_CONF} backed up to ${NGINX_CONF_BACKUP}"
+    warn "Re-apply any server_name / SSL changes from the backup (or re-run certbot)."
+fi
 
 info "Writing Nginx site config..."
 cat > "$NGINX_CONF" <<NGINX
@@ -411,7 +435,8 @@ rm -f /etc/nginx/sites-enabled/default
 
 ln -sf "$NGINX_CONF" "/etc/nginx/sites-enabled/${APP_DIR}"
 
-nginx -t && systemctl reload nginx
+nginx -t || error "Nginx config test failed — see output above."
+systemctl reload nginx
 success "Nginx site config written and reloaded."
 
 # ─── Composer ──────────────────────────────────────────────────────────────────
