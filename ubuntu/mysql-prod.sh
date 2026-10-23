@@ -15,6 +15,31 @@ warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 read_input() { read "$@" </dev/tty || true; }
 
+# Print a box sized to its longest row. Args: title, then rows; a "---" row
+# draws a separator. Padding is computed by hand so the right border stays
+# aligned regardless of row length.
+print_box() {
+    local title="$1"; shift
+    local width=${#title} row rule
+    for row in "$@"; do
+        if (( ${#row} > width )); then width=${#row}; fi
+    done
+    rule=$(printf '─%.0s' $(seq 1 $(( width + 4 ))))
+    local title_pad=$(( (width - ${#title}) / 2 ))
+
+    echo "  ┌${rule}┐"
+    printf "  │  %*s%s%*s  │\n" "$title_pad" '' "$title" $(( width - ${#title} - title_pad )) ''
+    echo "  ├${rule}┤"
+    for row in "$@"; do
+        if [[ "$row" == "---" ]]; then
+            echo "  ├${rule}┤"
+        else
+            printf "  │  %s%*s  │\n" "$row" $(( width - ${#row} )) ''
+        fi
+    done
+    echo "  └${rule}┘"
+}
+
 # ─── Root check ────────────────────────────────────────────────────────────────
 [[ $EUID -ne 0 ]] && error "Run this script as root or with sudo."
 
@@ -28,7 +53,7 @@ DEFAULT_BUFFER_POOL="${DEFAULT_BUFFER_POOL}M"
 
 echo ""
 echo "  ┌─────────────────────────────────────────────┐"
-echo "  │   MySQL Installer + Tuning (Prod)             │"
+echo "  │   MySQL Installer + Tuning (Prod)           │"
 echo "  └─────────────────────────────────────────────┘"
 echo ""
 
@@ -213,40 +238,48 @@ CNF
 mkdir -p /var/log/mysql
 chown mysql:mysql /var/log/mysql
 
-# Validate and reload
-mysqld --user=mysql --validate-config --defaults-extra-file="$MYCNF_PROD" \
+# Validate the full config mysqld will load (my.cnf includes conf.d/, so this
+# covers production.cnf). --defaults-extra-file is not used here because mysqld
+# only accepts it as the very first argument.
+mysqld --validate-config --user=mysql \
     || error "MySQL config validation failed. Check ${MYCNF_PROD}."
 
 systemctl restart mysql
 success "Production config applied and MySQL restarted."
 
 # ─── Summary ───────────────────────────────────────────────────────────────────
-echo ""
-echo "  ┌─────────────────────────────────────────────────────────────┐"
-echo "  │                   Installation complete                      │"
-echo "  ├─────────────────────────────────────────────────────────────┤"
-printf "  │  %-59s │\n" "MySQL version:       $(mysql --version)"
-printf "  │  %-59s │\n" "Config file:         ${MYCNF_PROD}"
-printf "  │  %-59s │\n" "Slow query log:      /var/log/mysql/slow.log"
-printf "  │  %-59s │\n" "Buffer pool size:    ${T_BUFFER_POOL}"
-printf "  │  %-59s │\n" "Max connections:     ${T_MAX_CONN}"
-printf "  │  %-59s │\n" "Bind address:        ${BIND_ADDR}"
+SUMMARY_ROWS=(
+    "MySQL version:       $(mysql --version)"
+    "Config file:         ${MYCNF_PROD}"
+    "Slow query log:      /var/log/mysql/slow.log"
+    "Buffer pool size:    ${T_BUFFER_POOL}"
+    "Max connections:     ${T_MAX_CONN}"
+    "Bind address:        ${BIND_ADDR}"
+)
 [[ -n "$REMOTE_USER" ]] && \
-printf "  │  %-59s │\n" "Remote user:         ${REMOTE_USER}@${REMOTE_HOST}"
-echo "  ├─────────────────────────────────────────────────────────────┤"
-echo "  │  Next steps:                                                │"
-echo "  │   1. Create a database and app user (as OS root):           │"
-echo "  │      mysql -uroot                                           │"
-echo "  │      CREATE DATABASE myapp CHARACTER SET utf8mb4;           │"
-echo "  │      CREATE USER 'myapp'@'localhost' IDENTIFIED BY 'pass';  │"
-echo "  │      GRANT ALL ON myapp.* TO 'myapp'@'localhost';           │"
+    SUMMARY_ROWS+=("Remote user:         ${REMOTE_USER}@${REMOTE_HOST}")
+SUMMARY_ROWS+=(
+    "---"
+    "Next steps:"
+    " 1. Create a database and app user (as OS root):"
+    "    mysql -uroot"
+    "    CREATE DATABASE myapp CHARACTER SET utf8mb4;"
+    "    CREATE USER 'myapp'@'localhost' IDENTIFIED BY 'pass';"
+    "    GRANT ALL ON myapp.* TO 'myapp'@'localhost';"
+)
 if [[ "$BIND_ADDR" != "127.0.0.1" ]]; then
-echo "  │   2. Open firewall port for remote access:                  │"
-echo "  │      ufw allow 3306/tcp                                     │"
-echo "  │      ufw reload                                             │"
+    SUMMARY_ROWS+=(
+        " 2. Open firewall port for remote access:"
+        "    ufw allow 3306/tcp"
+        "    ufw reload"
+    )
 else
-echo "  │   2. To allow remote access, set bind-address in:           │"
-printf "  │      %-55s │\n" "${MYCNF_PROD}"
+    SUMMARY_ROWS+=(
+        " 2. To allow remote access, set bind-address in:"
+        "    ${MYCNF_PROD}"
+    )
 fi
-echo "  └─────────────────────────────────────────────────────────────┘"
+
+echo ""
+print_box "Installation complete" "${SUMMARY_ROWS[@]}"
 echo ""

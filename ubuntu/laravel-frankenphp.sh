@@ -15,6 +15,31 @@ warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 read_input() { read "$@" </dev/tty || true; }
 
+# Print a box sized to its longest row. Args: title, then rows; a "---" row
+# draws a separator. Padding is computed by hand so the right border stays
+# aligned regardless of row length.
+print_box() {
+    local title="$1"; shift
+    local width=${#title} row rule
+    for row in "$@"; do
+        if (( ${#row} > width )); then width=${#row}; fi
+    done
+    rule=$(printf '─%.0s' $(seq 1 $(( width + 4 ))))
+    local title_pad=$(( (width - ${#title}) / 2 ))
+
+    echo "  ┌${rule}┐"
+    printf "  │  %*s%s%*s  │\n" "$title_pad" '' "$title" $(( width - ${#title} - title_pad )) ''
+    echo "  ├${rule}┤"
+    for row in "$@"; do
+        if [[ "$row" == "---" ]]; then
+            echo "  ├${rule}┤"
+        else
+            printf "  │  %s%*s  │\n" "$row" $(( width - ${#row} )) ''
+        fi
+    done
+    echo "  └${rule}┘"
+}
+
 # ─── Root check ────────────────────────────────────────────────────────────────
 [[ $EUID -ne 0 ]] && error "Run this script as root or with sudo."
 
@@ -28,7 +53,7 @@ DEFAULT_NUM_THREADS=$(( CPU_CORES * 2 ))
 
 echo ""
 echo "  ┌───────────────────────────────────────────────┐"
-echo "  │   Laravel Stack Installer (FrankenPHP)         │"
+echo "  │   Laravel Stack Installer (FrankenPHP)        │"
 echo "  └───────────────────────────────────────────────┘"
 echo "  RAM: ${TOTAL_RAM_MB}MB  |  CPUs: ${CPU_CORES}"
 echo ""
@@ -388,38 +413,41 @@ fi
 info "Project root ${PROJECT_ROOT} not populated — deploy your Laravel app there manually."
 
 # ─── Summary ───────────────────────────────────────────────────────────────────
-echo ""
-echo "  ┌─────────────────────────────────────────────────────────────┐"
-echo "  │                   Installation complete                      │"
-echo "  ├─────────────────────────────────────────────────────────────┤"
-printf "  │  %-59s │\n" "FrankenPHP:     $($FRANKENPHP_BIN version)"
-printf "  │  %-59s │\n" "Threads:        num=${FRANKEN_NUM_THREADS}, max=${FRANKEN_MAX_THREADS}"
-printf "  │  %-59s │\n" "Worker mode:    $([[ -n "$WORKER_BLOCK" ]] && echo "enabled (${WORKER_NUM} workers)" || echo "disabled (classic mode)")"
-printf "  │  %-59s │\n" "Site address:   ${SITE_ADDR}"
-if [[ -z "$DOMAIN" && -n "${SERVER_IP:-}" ]]; then
-printf "  │  %-59s │\n" "Access URL:     http://${SERVER_IP}"
-fi
-printf "  │  %-59s │\n" "Project root:   ${PROJECT_ROOT}"
-printf "  │  %-59s │\n" "Webroot:        ${WEBROOT}"
-printf "  │  %-59s │\n" "Caddyfile:      ${CADDYFILE}"
-printf "  │  %-59s │\n" "PHP error log:  /var/log/frankenphp/php-error.log"
-echo "  ├─────────────────────────────────────────────────────────────┤"
-echo "  │  Next steps:                                                │"
-printf "  │   1. Deploy Laravel app to %-31s │\n" "${PROJECT_ROOT}"
-printf "  │   2. chown -R www-data:www-data %-27s │\n" "${PROJECT_ROOT}"
-printf "  │   3. chmod -R 775 %-39s │\n" "${PROJECT_ROOT}/storage"
+SUMMARY_ROWS=(
+    "FrankenPHP:     $($FRANKENPHP_BIN version)"
+    "Threads:        num=${FRANKEN_NUM_THREADS}, max=${FRANKEN_MAX_THREADS}"
+    "Worker mode:    $([[ -n "$WORKER_BLOCK" ]] && echo "enabled (${WORKER_NUM} workers)" || echo "disabled (classic mode)")"
+    "Site address:   ${SITE_ADDR}"
+)
+[[ -z "$DOMAIN" && -n "${SERVER_IP:-}" ]] && \
+    SUMMARY_ROWS+=("Access URL:     http://${SERVER_IP}")
+SUMMARY_ROWS+=(
+    "Project root:   ${PROJECT_ROOT}"
+    "Webroot:        ${WEBROOT}"
+    "Caddyfile:      ${CADDYFILE}"
+    "PHP error log:  /var/log/frankenphp/php-error.log"
+    "---"
+    "Next steps:"
+    " 1. Deploy Laravel app to ${PROJECT_ROOT}"
+    " 2. chown -R www-data:www-data ${PROJECT_ROOT}"
+    " 3. chmod -R 775 ${PROJECT_ROOT}/storage"
+)
 if [[ -n "$WORKER_BLOCK" ]]; then
-echo "  │   4. composer require laravel/octane                        │"
-echo "  │      php artisan octane:install --server=frankenphp          │"
-echo "  │   5. systemctl restart frankenphp                            │"
+    SUMMARY_ROWS+=(
+        " 4. composer require laravel/octane"
+        "    php artisan octane:install --server=frankenphp"
+        " 5. systemctl restart frankenphp"
+    )
 else
-echo "  │   4. systemctl restart frankenphp                            │"
+    SUMMARY_ROWS+=(" 4. systemctl restart frankenphp")
 fi
 if [[ -z "$DOMAIN" ]]; then
-echo "  │   5. Once your domain is ready, re-run to enable HTTPS       │"
+    SUMMARY_ROWS+=(" 5. Once your domain is ready, re-run to enable HTTPS")
 elif [[ "$USE_LETSENCRYPT" == "N" ]]; then
-echo "  │   5. Set up TLS manually (own cert or reverse proxy)         │"
+    SUMMARY_ROWS+=(" 5. Set up TLS manually (own cert or reverse proxy)")
 fi
-echo "  │   6. Logs: journalctl -u frankenphp -f                      │"
-echo "  └─────────────────────────────────────────────────────────────┘"
+SUMMARY_ROWS+=(" 6. Logs: journalctl -u frankenphp -f")
+
+echo ""
+print_box "Installation complete" "${SUMMARY_ROWS[@]}"
 echo ""

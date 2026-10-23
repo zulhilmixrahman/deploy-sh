@@ -15,6 +15,31 @@ warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 read_input() { read "$@" </dev/tty || true; }
 
+# Print a box sized to its longest row. Args: title, then rows; a "---" row
+# draws a separator. Padding is computed by hand so the right border stays
+# aligned regardless of row length.
+print_box() {
+    local title="$1"; shift
+    local width=${#title} row rule
+    for row in "$@"; do
+        if (( ${#row} > width )); then width=${#row}; fi
+    done
+    rule=$(printf '─%.0s' $(seq 1 $(( width + 4 ))))
+    local title_pad=$(( (width - ${#title}) / 2 ))
+
+    echo "  ┌${rule}┐"
+    printf "  │  %*s%s%*s  │\n" "$title_pad" '' "$title" $(( width - ${#title} - title_pad )) ''
+    echo "  ├${rule}┤"
+    for row in "$@"; do
+        if [[ "$row" == "---" ]]; then
+            echo "  ├${rule}┤"
+        else
+            printf "  │  %s%*s  │\n" "$row" $(( width - ${#row} )) ''
+        fi
+    done
+    echo "  └${rule}┘"
+}
+
 # ─── Root check ────────────────────────────────────────────────────────────────
 [[ $EUID -ne 0 ]] && error "Run this script as root or with sudo."
 
@@ -470,44 +495,22 @@ fi
 info "Webroot ${WEBROOT} not created — deploy your Laravel app there manually."
 
 # ─── Summary ───────────────────────────────────────────────────────────────────
-SUMMARY_TITLE="Installation complete"
-SUMMARY_INFO=(
-    "Nginx:          $(nginx -v 2>&1)"
-    "PHP:            $(php${PHP_VER} --version | head -1)"
-    "PHP-FPM sock:   /run/php/php${PHP_VER}-fpm.sock"
-    "FPM pool:       pm=${FPM_PM}, max_children=${FPM_MAX_CHILDREN}"
-    "Database:       ${DB_NAME} (${DB_EXT})"
-    "Webroot:        ${WEBROOT}"
-    "Nginx config:   ${NGINX_CONF}"
-    "PHP error log:  /var/log/php/fpm-error.log"
-)
-SUMMARY_STEPS=(
-    "Next steps:"
-    " 1. Deploy Laravel app to /var/www/${APP_DIR}"
-    " 2. chown -R www-data:www-data /var/www/${APP_DIR}"
-    " 3. chmod -R 775 /var/www/${APP_DIR}/storage"
-    " 4. Update server_name in ${NGINX_CONF}"
-    " 5. Add SSL: certbot --nginx -d yourdomain.com"
-    " 6. FPM status: curl http://127.0.0.1/fpm-status"
-)
-
-# Size the box to the longest line so long values never push the border out
-BOX_WIDTH=${#SUMMARY_TITLE}
-for line in "${SUMMARY_INFO[@]}" "${SUMMARY_STEPS[@]}"; do
-    (( ${#line} > BOX_WIDTH )) && BOX_WIDTH=${#line}
-done
-BOX_RULE=$(printf '─%.0s' $(seq 1 $(( BOX_WIDTH + 4 ))))
-
-box_row() { printf "  │  %-${BOX_WIDTH}s  │\n" "$1"; }
-
-TITLE_PAD=$(( (BOX_WIDTH - ${#SUMMARY_TITLE}) / 2 ))
-
 echo ""
-echo "  ┌${BOX_RULE}┐"
-box_row "$(printf '%*s%s' "$TITLE_PAD" '' "$SUMMARY_TITLE")"
-echo "  ├${BOX_RULE}┤"
-for line in "${SUMMARY_INFO[@]}";  do box_row "$line"; done
-echo "  ├${BOX_RULE}┤"
-for line in "${SUMMARY_STEPS[@]}"; do box_row "$line"; done
-echo "  └${BOX_RULE}┘"
+print_box "Installation complete" \
+    "Nginx:          $(nginx -v 2>&1)" \
+    "PHP:            $(php${PHP_VER} --version | head -1)" \
+    "PHP-FPM sock:   /run/php/php${PHP_VER}-fpm.sock" \
+    "FPM pool:       pm=${FPM_PM}, max_children=${FPM_MAX_CHILDREN}" \
+    "Database:       ${DB_NAME} (${DB_EXT})" \
+    "Webroot:        ${WEBROOT}" \
+    "Nginx config:   ${NGINX_CONF}" \
+    "PHP error log:  /var/log/php/fpm-error.log" \
+    "---" \
+    "Next steps:" \
+    " 1. Deploy Laravel app to /var/www/${APP_DIR}" \
+    " 2. chown -R www-data:www-data /var/www/${APP_DIR}" \
+    " 3. chmod -R 775 /var/www/${APP_DIR}/storage" \
+    " 4. Update server_name in ${NGINX_CONF}" \
+    " 5. Add SSL: certbot --nginx -d yourdomain.com" \
+    " 6. FPM status: curl http://127.0.0.1/fpm-status"
 echo ""

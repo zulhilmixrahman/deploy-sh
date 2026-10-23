@@ -15,6 +15,31 @@ warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 read_input() { read "$@" </dev/tty || true; }
 
+# Print a box sized to its longest row. Args: title, then rows; a "---" row
+# draws a separator. Padding is computed by hand so the right border stays
+# aligned regardless of row length.
+print_box() {
+    local title="$1"; shift
+    local width=${#title} row rule
+    for row in "$@"; do
+        if (( ${#row} > width )); then width=${#row}; fi
+    done
+    rule=$(printf '─%.0s' $(seq 1 $(( width + 4 ))))
+    local title_pad=$(( (width - ${#title}) / 2 ))
+
+    echo "  ┌${rule}┐"
+    printf "  │  %*s%s%*s  │\n" "$title_pad" '' "$title" $(( width - ${#title} - title_pad )) ''
+    echo "  ├${rule}┤"
+    for row in "$@"; do
+        if [[ "$row" == "---" ]]; then
+            echo "  ├${rule}┤"
+        else
+            printf "  │  %s%*s  │\n" "$row" $(( width - ${#row} )) ''
+        fi
+    done
+    echo "  └${rule}┘"
+}
+
 # ─── Root check ────────────────────────────────────────────────────────────────
 [[ $EUID -ne 0 ]] && error "Run this script as root or with sudo."
 
@@ -42,7 +67,7 @@ DEFAULT_WORKERS=$(nproc 2>/dev/null || echo 2)
 
 echo ""
 echo "  ┌───────────────────────────────────────────────┐"
-echo "  │   PostgreSQL Installer + Tuning (Production)   │"
+echo "  │  PostgreSQL Installer + Tuning (Production)   │"
 echo "  └───────────────────────────────────────────────┘"
 echo ""
 
@@ -283,35 +308,41 @@ else
 fi
 
 # ─── Summary ───────────────────────────────────────────────────────────────────
-echo ""
-echo "  ┌─────────────────────────────────────────────────────────────┐"
-echo "  │                   Installation complete                      │"
-echo "  ├─────────────────────────────────────────────────────────────┤"
-printf "  │  %-59s │\n" "PostgreSQL version:  $(psql --version)"
-printf "  │  %-59s │\n" "Config file:         ${PROD_CONF}"
-printf "  │  %-59s │\n" "pg_hba.conf:         ${PG_HBA}"
-printf "  │  %-59s │\n" "shared_buffers:      ${T_SHARED_BUFFERS}"
-printf "  │  %-59s │\n" "effective_cache_size:${T_CACHE_SIZE}"
-printf "  │  %-59s │\n" "max_connections:     ${T_MAX_CONN}"
-printf "  │  %-59s │\n" "Slow query log:      >= ${T_SLOW_MS}ms"
-printf "  │  %-59s │\n" "listen_addresses:    ${LISTEN_ADDR}"
-[[ -n "$REMOTE_CIDR"  ]] && printf "  │  %-59s │\n" "Remote CIDR:         ${REMOTE_CIDR}"
-[[ -n "$REMOTE_USER"  ]] && printf "  │  %-59s │\n" "Remote user:         ${REMOTE_USER}"
-echo "  ├─────────────────────────────────────────────────────────────┤"
-echo "  │  Next steps:                                                │"
-echo "  │   1. Create a database and app user (as OS postgres):       │"
-echo "  │      sudo -u postgres psql                                  │"
-echo "  │      CREATE DATABASE myapp ENCODING 'UTF8';                 │"
-echo "  │      CREATE USER myapp WITH ENCRYPTED PASSWORD 'pass';      │"
-echo "  │      GRANT ALL PRIVILEGES ON DATABASE myapp TO myapp;       │"
+SUMMARY_ROWS=(
+    "PostgreSQL version:   $(psql --version)"
+    "Config file:          ${PROD_CONF}"
+    "pg_hba.conf:          ${PG_HBA}"
+    "shared_buffers:       ${T_SHARED_BUFFERS}"
+    "effective_cache_size: ${T_CACHE_SIZE}"
+    "max_connections:      ${T_MAX_CONN}"
+    "Slow query log:       >= ${T_SLOW_MS}ms"
+    "listen_addresses:     ${LISTEN_ADDR}"
+)
+[[ -n "$REMOTE_CIDR" ]] && SUMMARY_ROWS+=("Remote CIDR:          ${REMOTE_CIDR}")
+[[ -n "$REMOTE_USER" ]] && SUMMARY_ROWS+=("Remote user:          ${REMOTE_USER}")
+SUMMARY_ROWS+=(
+    "---"
+    "Next steps:"
+    " 1. Create a database and app user (as OS postgres):"
+    "    sudo -u postgres psql"
+    "    CREATE DATABASE myapp ENCODING 'UTF8';"
+    "    CREATE USER myapp WITH ENCRYPTED PASSWORD 'pass';"
+    "    GRANT ALL PRIVILEGES ON DATABASE myapp TO myapp;"
+)
 if [[ -n "$REMOTE_CIDR" ]]; then
-echo "  │   2. Open firewall port for remote access:                  │"
-echo "  │      ufw allow 5432/tcp                                     │"
-echo "  │      ufw reload                                             │"
+    SUMMARY_ROWS+=(
+        " 2. Open firewall port for remote access:"
+        "    ufw allow 5432/tcp"
+        "    ufw reload"
+    )
 else
-echo "  │   2. To allow remote access, edit listen_addresses in:      │"
-printf "  │      %-55s │\n" "${PG_MAIN_CONF}"
-echo "  │      and add a host entry in pg_hba.conf                    │"
+    SUMMARY_ROWS+=(
+        " 2. To allow remote access, edit listen_addresses in:"
+        "    ${PG_MAIN_CONF}"
+        "    and add a host entry in pg_hba.conf"
+    )
 fi
-echo "  └─────────────────────────────────────────────────────────────┘"
+
+echo ""
+print_box "Installation complete" "${SUMMARY_ROWS[@]}"
 echo ""

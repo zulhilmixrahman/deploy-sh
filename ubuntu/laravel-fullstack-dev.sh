@@ -15,6 +15,31 @@ warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 read_input() { read "$@" </dev/tty || true; }
 
+# Print a box sized to its longest row. Args: title, then rows; a "---" row
+# draws a separator. Padding is computed by hand so the right border stays
+# aligned regardless of row length.
+print_box() {
+    local title="$1"; shift
+    local width=${#title} row rule
+    for row in "$@"; do
+        if (( ${#row} > width )); then width=${#row}; fi
+    done
+    rule=$(printf '─%.0s' $(seq 1 $(( width + 4 ))))
+    local title_pad=$(( (width - ${#title}) / 2 ))
+
+    echo "  ┌${rule}┐"
+    printf "  │  %*s%s%*s  │\n" "$title_pad" '' "$title" $(( width - ${#title} - title_pad )) ''
+    echo "  ├${rule}┤"
+    for row in "$@"; do
+        if [[ "$row" == "---" ]]; then
+            echo "  ├${rule}┤"
+        else
+            printf "  │  %s%*s  │\n" "$row" $(( width - ${#row} )) ''
+        fi
+    done
+    echo "  └${rule}┘"
+}
+
 # ─── Root check ────────────────────────────────────────────────────────────────
 [[ $EUID -ne 0 ]] && error "Run this script as root or with sudo."
 
@@ -37,7 +62,7 @@ DEFAULT_BUFFER_POOL="${DEFAULT_BUFFER_POOL}M"
 echo ""
 echo "  ┌─────────────────────────────────────────────────────────────┐"
 echo "  │  Laravel Fullstack Installer — Staging / Development        │"
-echo "  │  Nginx + PHP-FPM + MySQL  (Ubuntu)                         │"
+echo "  │  Nginx + PHP-FPM + MySQL  (Ubuntu)                          │"
 echo "  └─────────────────────────────────────────────────────────────┘"
 echo "  RAM: ${TOTAL_RAM_MB}MB  |  CPUs: ${CPU_CORES}"
 echo ""
@@ -572,37 +597,39 @@ else
 fi
 
 # ─── Summary ───────────────────────────────────────────────────────────────────
-echo ""
-echo "  ┌─────────────────────────────────────────────────────────────┐"
-echo "  │                   Installation complete                      │"
-echo "  ├─────────────────────────────────────────────────────────────┤"
-printf "  │  %-59s │\n" "Environment:    ${APP_ENV}"
-printf "  │  %-59s │\n" "Nginx:          $(nginx -v 2>&1)"
-printf "  │  %-59s │\n" "PHP:            $(php${PHP_VER} --version | head -1)"
-printf "  │  %-59s │\n" "PHP-FPM sock:   /run/php/php${PHP_VER}-fpm.sock"
-printf "  │  %-59s │\n" "FPM pool:       pm=${FPM_PM}, max_children=${FPM_MAX_CHILDREN}"
-printf "  │  %-59s │\n" "MySQL:          $(mysql --version)"
-printf "  │  %-59s │\n" "Webroot:        ${WEBROOT}"
-printf "  │  %-59s │\n" "Nginx config:   ${NGINX_CONF}"
-printf "  │  %-59s │\n" "PHP error log:  /var/log/php/fpm-error.log"
-printf "  │  %-59s │\n" "MySQL slow log: /var/log/mysql/slow.log"
+SUMMARY_ROWS=(
+    "Environment:    ${APP_ENV}"
+    "Nginx:          $(nginx -v 2>&1)"
+    "PHP:            $(php${PHP_VER} --version | head -1)"
+    "PHP-FPM sock:   /run/php/php${PHP_VER}-fpm.sock"
+    "FPM pool:       pm=${FPM_PM}, max_children=${FPM_MAX_CHILDREN}"
+    "MySQL:          $(mysql --version)"
+    "Webroot:        ${WEBROOT}"
+    "Nginx config:   ${NGINX_CONF}"
+    "PHP error log:  /var/log/php/fpm-error.log"
+    "MySQL slow log: /var/log/mysql/slow.log"
+)
 [[ "$GENERAL_LOG_VAL" == "ON" ]] && \
-printf "  │  %-59s │\n" "MySQL gen log:  /var/log/mysql/general.log"
+    SUMMARY_ROWS+=("MySQL gen log:  /var/log/mysql/general.log")
 [[ -n "$DB_NAME" ]] && \
-printf "  │  %-59s │\n" "Database:       ${DB_NAME}  (user: ${DB_USER}@localhost)"
-echo "  ├─────────────────────────────────────────────────────────────┤"
-echo "  │  Next steps:                                                │"
-printf "  │   1. Deploy Laravel to %-35s │\n" "/var/www/${APP_DIR}"
-printf "  │   2. chown -R www-data:www-data %-27s │\n" "/var/www/${APP_DIR}"
-printf "  │   3. chmod -R 775 %-39s │\n" "/var/www/${APP_DIR}/storage"
-echo "  │   4. Copy .env.example → .env and configure:               │"
-[[ -n "$DB_NAME" ]] && \
-echo "  │        DB_DATABASE=${DB_NAME}"
-[[ -n "$DB_USER" ]] && \
-echo "  │        DB_USERNAME=${DB_USER}"
-echo "  │   5. php artisan key:generate                              │"
-echo "  │   6. php artisan migrate                                   │"
-echo "  │   7. FPM status: curl http://127.0.0.1/fpm-status          │"
-echo "  │   8. Xdebug port 9003 — set xdebug.mode=debug to activate │"
-echo "  └─────────────────────────────────────────────────────────────┘"
+    SUMMARY_ROWS+=("Database:       ${DB_NAME}  (user: ${DB_USER}@localhost)")
+SUMMARY_ROWS+=(
+    "---"
+    "Next steps:"
+    " 1. Deploy Laravel to /var/www/${APP_DIR}"
+    " 2. chown -R www-data:www-data /var/www/${APP_DIR}"
+    " 3. chmod -R 775 /var/www/${APP_DIR}/storage"
+    " 4. Copy .env.example to .env and configure:"
+)
+[[ -n "$DB_NAME" ]] && SUMMARY_ROWS+=("      DB_DATABASE=${DB_NAME}")
+[[ -n "$DB_USER" ]] && SUMMARY_ROWS+=("      DB_USERNAME=${DB_USER}")
+SUMMARY_ROWS+=(
+    " 5. php artisan key:generate"
+    " 6. php artisan migrate"
+    " 7. FPM status: curl http://127.0.0.1/fpm-status"
+    " 8. Xdebug port 9003 - set xdebug.mode=debug to activate"
+)
+
+echo ""
+print_box "Installation complete" "${SUMMARY_ROWS[@]}"
 echo ""
