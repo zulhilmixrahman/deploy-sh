@@ -470,25 +470,44 @@ fi
 info "Webroot ${WEBROOT} not created — deploy your Laravel app there manually."
 
 # ─── Summary ───────────────────────────────────────────────────────────────────
+SUMMARY_TITLE="Installation complete"
+SUMMARY_INFO=(
+    "Nginx:          $(nginx -v 2>&1)"
+    "PHP:            $(php${PHP_VER} --version | head -1)"
+    "PHP-FPM sock:   /run/php/php${PHP_VER}-fpm.sock"
+    "FPM pool:       pm=${FPM_PM}, max_children=${FPM_MAX_CHILDREN}"
+    "Database:       ${DB_NAME} (${DB_EXT})"
+    "Webroot:        ${WEBROOT}"
+    "Nginx config:   ${NGINX_CONF}"
+    "PHP error log:  /var/log/php/fpm-error.log"
+)
+SUMMARY_STEPS=(
+    "Next steps:"
+    " 1. Deploy Laravel app to /var/www/${APP_DIR}"
+    " 2. chown -R www-data:www-data /var/www/${APP_DIR}"
+    " 3. chmod -R 775 /var/www/${APP_DIR}/storage"
+    " 4. Update server_name in ${NGINX_CONF}"
+    " 5. Add SSL: certbot --nginx -d yourdomain.com"
+    " 6. FPM status: curl http://127.0.0.1/fpm-status"
+)
+
+# Size the box to the longest line so long values never push the border out
+BOX_WIDTH=${#SUMMARY_TITLE}
+for line in "${SUMMARY_INFO[@]}" "${SUMMARY_STEPS[@]}"; do
+    (( ${#line} > BOX_WIDTH )) && BOX_WIDTH=${#line}
+done
+BOX_RULE=$(printf '─%.0s' $(seq 1 $(( BOX_WIDTH + 4 ))))
+
+box_row() { printf "  │  %-${BOX_WIDTH}s  │\n" "$1"; }
+
+TITLE_PAD=$(( (BOX_WIDTH - ${#SUMMARY_TITLE}) / 2 ))
+
 echo ""
-echo "  ┌─────────────────────────────────────────────────────────────┐"
-echo "  │                   Installation complete                      │"
-echo "  ├─────────────────────────────────────────────────────────────┤"
-printf "  │  %-59s │\n" "Nginx:          $(nginx -v 2>&1)"
-printf "  │  %-59s │\n" "PHP:            $(php${PHP_VER} --version | head -1)"
-printf "  │  %-59s │\n" "PHP-FPM sock:   /run/php/php${PHP_VER}-fpm.sock"
-printf "  │  %-59s │\n" "FPM pool:       pm=${FPM_PM}, max_children=${FPM_MAX_CHILDREN}"
-printf "  │  %-59s │\n" "Database:       ${DB_NAME} (${DB_EXT})"
-printf "  │  %-59s │\n" "Webroot:        ${WEBROOT}"
-printf "  │  %-59s │\n" "Nginx config:   ${NGINX_CONF}"
-printf "  │  %-59s │\n" "PHP error log:  /var/log/php/fpm-error.log"
-echo "  ├─────────────────────────────────────────────────────────────┤"
-echo "  │  Next steps:                                                │"
-printf "  │   1. Deploy Laravel app to %-31s │\n" "/var/www/${APP_DIR}"
-printf "  │   2. chown -R www-data:www-data %-27s │\n" "/var/www/${APP_DIR}"
-printf "  │   3. chmod -R 775 %-39s │\n" "/var/www/${APP_DIR}/storage"
-echo "  │   4. Update server_name in ${NGINX_CONF}"
-echo "  │   5. Add SSL: certbot --nginx -d yourdomain.com             │"
-echo "  │   6. FPM status: curl http://127.0.0.1/fpm-status           │"
-echo "  └─────────────────────────────────────────────────────────────┘"
+echo "  ┌${BOX_RULE}┐"
+box_row "$(printf '%*s%s' "$TITLE_PAD" '' "$SUMMARY_TITLE")"
+echo "  ├${BOX_RULE}┤"
+for line in "${SUMMARY_INFO[@]}";  do box_row "$line"; done
+echo "  ├${BOX_RULE}┤"
+for line in "${SUMMARY_STEPS[@]}"; do box_row "$line"; done
+echo "  └${BOX_RULE}┘"
 echo ""
